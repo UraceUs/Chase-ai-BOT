@@ -611,7 +611,9 @@ describe('Relatorio Meta e Kommo de 25/09 (time de vendas)', () => {
     '[GitHub] A fine-grained personal access token has been added',
     'Reconnect your Bank of America account',
     'URace Support, you have 23 new notifications',
-    'New seller message (Alibaba)'
+    'New seller message (Alibaba)',
+    'URace Support, você tem 135 novas notificações',
+    'Alguém adicionou este endereço como o próprio e-mail de recuperação'
   ])('card do Inbox de e-mail listado no relatorio vira nao-lead: %s', texto => {
     const { kommo, robo } = avaliar({ canal: 'email', texto });
 
