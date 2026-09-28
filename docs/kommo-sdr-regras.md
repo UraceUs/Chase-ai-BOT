@@ -549,7 +549,8 @@ decisões e só então mudar para `aplicar`.
    - `KOMMO_TOKEN` — o token do passo 1;
    - `KOMMO_WEBHOOK_TOKEN` — segredo aleatório que vai na URL do webhook;
    - `SDR_WEBHOOK_TOKEN` — segredo administrativo (também protege `/api/sdr/avaliar`);
-   - `KOMMO_RESPONSAVEL_ID` — id do usuário do Kommo que recebe os handoffs;
+   - `KOMMO_RESPONSAVEL_ID` — id do usuário do Kommo que recebe os handoffs:
+     `12209643` (URace Support, decisão do dono em 28/09);
    - `KOMMO_MODO` — deixar vazio (observar) na primeira fase; `aplicar` depois.
 3. Fazer o merge deste PR, copiar o repositório para o servidor e subir
    `node sdr-server.js` como serviço (systemd, pm2 ou o supervisor que o
@@ -614,7 +615,7 @@ como parâmetro, marcados, e não como verdade:
 |---|---|---|
 | Horário de atendimento humano | quarta a domingo, 9h–18h (Orlando) | confirmar dias e faixa; o relatório de 25/09 aponta três arquivos com QUI–DOM 8h–15h e uma mensagem enviada a cliente dizendo 5pm |
 | Horário de operação da pista | quarta a domingo, 8h–13h | confirmado por Italo em atendimento real, mas conflita com a janela acima |
-| Responsável único (`KOMMO_RESPONSAVEL_ID`) | não definido | o bot da equipe apresenta o Lucas ("Lucas will come in right here", "15 minutes with Lucas"); confirmar e pegar o id de usuário dele no Kommo |
+| Responsável único (`KOMMO_RESPONSAVEL_ID`) | **12209643 (URace Support)** | decidido pelo dono em 28/09; o Lucas não é usuário do Kommo |
 | Portfólio de serviços | Professional Coaching, Summer Camp, Trackside Support (do sistema de reservas) | o portfólio comercial do Chase era 1-Day Arrive and Drive, Training Camp, Academy e Racing Team; decidir qual vale no funil |
 | Idade mínima | não implementado | o Chase recusava por código abaixo de 4 anos (Baby Kart 4–7, demais 7+) |
 | Taxas da pista e depósito | não implementado | driver pass e pit pass são pagos direto à pista e nunca entram no valor |
