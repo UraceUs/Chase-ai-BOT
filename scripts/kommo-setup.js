@@ -2,14 +2,13 @@
 'use strict';
 
 /**
- * Cria/confere no Kommo os funis Entrada e Comercial com as etapas do SDR.
+ * Confere no Kommo os funis e etapas que o SDR usa (Urace e Comercial, da
+ * equipe) e registra o webhook. Nunca cria funil nem etapa.
  *
  *   KOMMO_SUBDOMINIO=urace KOMMO_TOKEN=... node scripts/kommo-setup.js
- *       so mostra o que falta (nao altera nada)
- *   ... node scripts/kommo-setup.js --aplicar
- *       cria o que falta
+ *       so mostra o mapa e o que falta (nao altera nada)
  *   ... node scripts/kommo-setup.js --aplicar --webhook "https://<backend>/api/kommo/webhook?token=..."
- *       cria o que falta e registra o webhook de mensagens
+ *       registra (ou completa) o webhook de mensagens e leads criados
  */
 
 const kommo = require('../lib/kommo');
@@ -26,11 +25,12 @@ async function main() {
     process.exit(1);
   }
 
-  const resultado = await integracao.sincronizarEstrutura({ aplicar });
+  const resultado = await integracao.sincronizarEstrutura();
   console.log(JSON.stringify(resultado, null, 2));
 
-  if (!aplicar && !resultado.plano.ok) {
-    console.log('\nNada foi alterado. Rode com --aplicar para criar o que falta.');
+  if (!resultado.plano.ok) {
+    console.log('\nO mapa aponta para funil ou etapa que nao existe no Kommo. Corrija KOMMO_MAPA');
+    console.log('(lib/sdr/regras.js) ou o nome da etapa no Kommo; o SDR nao cria nada sozinho.');
   }
 
   if (aplicar && webhookUrl) {

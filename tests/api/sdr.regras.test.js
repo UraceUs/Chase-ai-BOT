@@ -59,7 +59,7 @@ describe('Entrada no Kommo — o que NAO vira card', () => {
   });
 
   it('midia sem texto aguarda contexto antes de abrir card', () => {
-    const { kommo, robo } = avaliar({ canal: 'whatsapp', midia: 'audio' });
+    const { kommo, robo } = avaliar({ canal: 'telegram', midia: 'audio' });
 
     expect(kommo.criarCard).toBe(false);
     expect(kommo.motivo).toBe('MIDIA_SEM_CONTEXTO');
@@ -226,7 +226,7 @@ describe('Robo chat — quando responde e quando cala', () => {
   });
 
   it('faz uma pergunta de qualificacao por vez, comecando pela experiencia', () => {
-    const { robo } = avaliar({ canal: 'whatsapp', texto: 'Quanto custa o Summer Camp?' });
+    const { robo } = avaliar({ canal: 'telegram', texto: 'Quanto custa o Summer Camp?' });
 
     expect(robo.responder).toBe(true);
     expect(robo.proximaPergunta).toMatch(/Qual opcao descreve melhor o piloto/);
@@ -236,7 +236,7 @@ describe('Robo chat — quando responde e quando cala', () => {
   });
 
   it('nao fala de valor antes de classificar a experiencia do piloto', () => {
-    const { robo } = avaliar({ canal: 'whatsapp', texto: 'Quanto custa?' });
+    const { robo } = avaliar({ canal: 'telegram', texto: 'Quanto custa?' });
 
     expect(robo.motivo).toBe('PRECO_ANTES_DA_CLASSIFICACAO');
     expect(robo.mensagens.join(' ')).toMatch(/nivel do piloto/);
@@ -244,7 +244,7 @@ describe('Robo chat — quando responde e quando cala', () => {
 
   it('nao promete preco fechado depois de classificar', () => {
     const { robo } = avaliar({
-      canal: 'whatsapp',
+      canal: 'telegram',
       texto: 'Quanto custa?',
       qualificacao: { experiencia: 'B' }
     });
@@ -254,7 +254,7 @@ describe('Robo chat — quando responde e quando cala', () => {
 
   it('encerra a cadencia de follow-up apos 4 tentativas', () => {
     const { robo } = avaliar({
-      canal: 'whatsapp',
+      canal: 'telegram',
       texto: 'Quanto custa o coaching?',
       conversa: { tentativasFollowUp: 4 }
     });
@@ -274,7 +274,7 @@ describe('Robo chat — quando responde e quando cala', () => {
 
 describe('Robo chat — escalonamento para humano', () => {
   it('escala imediatamente temas sensiveis sem tentar responder o merito', () => {
-    const { robo } = avaliar({ canal: 'whatsapp', texto: 'Meu filho se machucou na pista, quero falar com o advogado' });
+    const { robo } = avaliar({ canal: 'telegram', texto: 'Meu filho se machucou na pista, quero falar com o advogado' });
 
     expect(robo.escalonamento.motivo).toBe('TEMA_SENSIVEL');
     expect(robo.escalonamento.prioridade).toBe('alta');
@@ -283,14 +283,14 @@ describe('Robo chat — escalonamento para humano', () => {
   });
 
   it('escala pedido de desconto (negociacao e humana)', () => {
-    const { robo } = avaliar({ canal: 'whatsapp', texto: 'Tem desconto para duas pessoas?' });
+    const { robo } = avaliar({ canal: 'telegram', texto: 'Tem desconto para duas pessoas?' });
 
     expect(robo.escalonamento.motivo).toBe('NEGOCIACAO');
   });
 
   it('escala quando a qualificacao esta completa', () => {
     const { robo } = avaliar({
-      canal: 'whatsapp',
+      canal: 'telegram',
       texto: 'Isso mesmo',
       qualificacao: {
         servico: 'Professional Coaching',
@@ -312,7 +312,7 @@ describe('Robo chat — escalonamento para humano', () => {
 
   it('escala apos o limite de tentativas sem entendimento', () => {
     const { robo } = avaliar({
-      canal: 'whatsapp',
+      canal: 'telegram',
       texto: 'xyzw abcd',
       conversa: { tentativasSemEntendimento: 2 }
     });
@@ -321,7 +321,7 @@ describe('Robo chat — escalonamento para humano', () => {
   });
 
   it('pede esclarecimento antes de escalar na primeira tentativa', () => {
-    const { robo } = avaliar({ canal: 'whatsapp', texto: 'xyzw abcd' });
+    const { robo } = avaliar({ canal: 'telegram', texto: 'xyzw abcd' });
 
     expect(robo.escalonamento).toBeNull();
     expect(robo.motivo).toBe('SEM_ENTENDIMENTO_TENTATIVA');
@@ -329,7 +329,7 @@ describe('Robo chat — escalonamento para humano', () => {
 
   it('escala falha tecnica quando o Pit ID nao existe', () => {
     const { robo } = avaliar({
-      canal: 'whatsapp',
+      canal: 'telegram',
       texto: 'Meu codigo e PIT-S40K-RTK3VQ e nao abre',
       reserva: { pitId: 'PIT-S40K-RTK3VQ', encontrada: false }
     });
@@ -339,7 +339,7 @@ describe('Robo chat — escalonamento para humano', () => {
 
   it('cobra a Etapa 2 quando a reserva fica parada', () => {
     const { robo, kommo } = avaliar({
-      canal: 'whatsapp',
+      canal: 'telegram',
       tipo: 'reserva_etapa1_parada',
       reserva: { pitId: 'PIT-S40K-RTK3VQ', etapa: 1 },
       card: { existe: true, id: '5', status: 'aberto' }
@@ -351,7 +351,7 @@ describe('Robo chat — escalonamento para humano', () => {
   });
 
   it('fora do horario comercial avisa o lead e adia o prazo da tarefa', () => {
-    const { robo } = avaliar({ canal: 'whatsapp', texto: 'Quero falar com alguem' }, FORA_DO_HORARIO);
+    const { robo } = avaliar({ canal: 'telegram', texto: 'Quero falar com alguem' }, FORA_DO_HORARIO);
 
     expect(robo.foraDoHorarioComercial).toBe(true);
     expect(robo.mensagens.join(' ')).toMatch(/quarta a domingo/);
@@ -391,7 +391,7 @@ describe('Validacao de evento e descricao das regras', () => {
 
 describe('Regras herdadas do projeto Chase', () => {
   it('escala na hora quando o lead sinaliza que quer avancar, mesmo sem contato', () => {
-    const { robo } = avaliar({ canal: 'whatsapp', texto: 'Lets do it, when can he start?' });
+    const { robo } = avaliar({ canal: 'telegram', texto: 'Lets do it, when can he start?' });
 
     expect(robo.escalonamento.motivo).toBe('SINAL_CONVERSAO');
     expect(robo.escalonamento.prioridade).toBe('alta');
@@ -400,7 +400,7 @@ describe('Regras herdadas do projeto Chase', () => {
   });
 
   it('manda piloto que compete direto para o time, sem formulario', () => {
-    const { robo, kommo } = avaliar({ canal: 'whatsapp', texto: 'Eu compito na Rotax, quero treinar ai' });
+    const { robo, kommo } = avaliar({ canal: 'telegram', texto: 'Eu compito na Rotax, quero treinar ai' });
 
     expect(robo.escalonamento.motivo).toBe('PILOTO_COMPETIDOR');
     expect(robo.proximaPergunta).toBeNull();
@@ -421,7 +421,7 @@ describe('Regras herdadas do projeto Chase', () => {
 
   it('nao reapresenta a abertura para lead que ja conversou', () => {
     const { robo } = avaliar({
-      canal: 'whatsapp',
+      canal: 'telegram',
       texto: 'Oi',
       conversa: { mensagensDoLead: 4 }
     });
@@ -466,7 +466,7 @@ describe('Regras herdadas do projeto Chase', () => {
   });
 
   it('limita os re-alertas e cai em tarefa do Kommo', () => {
-    const { robo } = avaliar({ canal: 'whatsapp', texto: 'Quero falar com alguem' });
+    const { robo } = avaliar({ canal: 'telegram', texto: 'Quero falar com alguem' });
 
     expect(robo.escalonamento.maxRealertas).toBe(4);
     expect(robo.escalonamento.aposMaxRealertas).toBe('criar_tarefa_no_kommo');
@@ -576,8 +576,8 @@ describe('Dois funis — Entrada recebe tudo, Comercial so lead', () => {
   });
 
   it('com uma pessoa no comercial o handoff nao usa rodizio', () => {
-    const alta = avaliar({ canal: 'whatsapp', texto: 'Quero falar com alguem' }).robo.escalonamento;
-    const media = avaliar({ canal: 'whatsapp', texto: 'Tem desconto para 2 pilotos?' }).robo.escalonamento;
+    const alta = avaliar({ canal: 'telegram', texto: 'Quero falar com alguem' }).robo.escalonamento;
+    const media = avaliar({ canal: 'telegram', texto: 'Tem desconto para 2 pilotos?' }).robo.escalonamento;
 
     expect(alta.responsavel).toBe('responsavel_unico');
     expect(alta.interromper).toBe(true);
@@ -600,5 +600,83 @@ describe('Mensagens automaticas vistas no Kommo da U-RACE', () => {
   it('e-mail de pessoa real nao e tratado como automatico', () => {
     const { analise } = avaliar({ canal: 'email', texto: 'Hi, how much is a training day?', contato: { email: 'carloscrestana@gmail.com' } });
     expect(analise.flags.automatico).toBe(false);
+  });
+});
+
+describe('Relatorio Meta e Kommo de 25/09 (time de vendas)', () => {
+  it.each([
+    'Seu código para fazer login é 343929',
+    'Seu código de verificação para fazer login no Dialpad',
+    'Alerta de segurança para uracesim3@gmail.com',
+    '[GitHub] A fine-grained personal access token has been added',
+    'Reconnect your Bank of America account',
+    'URace Support, you have 23 new notifications',
+    'New seller message (Alibaba)'
+  ])('card do Inbox de e-mail listado no relatorio vira nao-lead: %s', texto => {
+    const { kommo, robo } = avaliar({ canal: 'email', texto });
+
+    expect(kommo.motivo).toBe('MENSAGEM_AUTOMATICA');
+    expect(kommo.entraNoComercial).toBe(false);
+    expect(robo.responder).toBe(false);
+  });
+
+  it.each(['Carlos Mendes', 'Lead #15712502', 'Hi, how much is a single day?'])('nome ou pergunta de gente nao e lixo: %s', texto => {
+    expect(avaliar({ canal: 'email', texto }).kommo.motivo).not.toBe('MENSAGEM_AUTOMATICA');
+  });
+
+  it.each(['instagram', 'messenger', 'whatsapp', 'site'])('no %s quem responde e o bot da equipe; o SDR so organiza', canal => {
+    const { kommo, robo } = avaliar({ canal, texto: 'How much is a single day on track?' });
+
+    expect(kommo.entraNoComercial).toBe(true);
+    expect(robo.responder).toBe(false);
+    expect(robo.motivo).toBe('BOT_DA_EQUIPE_NO_CANAL');
+    expect(robo.escalonamento).toBeNull();
+    expect(robo.followUp).toBeNull();
+  });
+
+  it('pedido de humano escrito fora do menu do bot da equipe vira tarefa, sem mensagem do SDR', () => {
+    const { robo } = avaliar({ canal: 'instagram', texto: 'I want to talk to someone about a quote' });
+
+    expect(robo.responder).toBe(false);
+    expect(robo.mensagens).toEqual([]);
+    expect(robo.escalonamento).toMatchObject({ motivo: 'PEDIDO_HUMANO', prioridade: 'alta' });
+    expect(robo.silenciarBot).toBe(false);
+  });
+
+  it('tema sensivel em canal com bot da equipe ainda chama gente na hora', () => {
+    const { robo } = avaliar({ canal: 'instagram', texto: 'Meu filho sofreu um acidente na pista ontem' });
+
+    expect(robo.responder).toBe(false);
+    expect(robo.escalonamento.prioridade).toBe('alta');
+  });
+
+  it('a trilha de follow-up da Meta cabe inteira na janela de 24 h', () => {
+    const total = regras.FOLLOW_UP_MINUTOS_JANELA_24H.reduce((soma, minutos) => soma + minutos, 0);
+    expect(total).toBeLessThan(regras.JANELA_MENSAGEM_LIVRE_HORAS * 60);
+    expect(regras.CANAIS_JANELA_24H).toEqual(expect.arrayContaining(['whatsapp', 'instagram', 'messenger']));
+  });
+
+  it('se o dono liberar o robo no WhatsApp, o follow-up para dentro da janela de 24 h', () => {
+    const botDaEquipe = regras.CANAIS_COM_BOT_DA_EQUIPE.splice(0);
+    regras.CANAIS_COM_ROBO.push('whatsapp');
+    try {
+      const primeiro = avaliar({ canal: 'whatsapp', texto: 'Quanto custa o Summer Camp?' }).robo.followUp;
+      const ultimo = avaliar({ canal: 'whatsapp', texto: 'Quanto custa o Summer Camp?', conversa: { tentativasFollowUp: 2 } }).robo.followUp;
+
+      expect(primeiro).toMatchObject({ agendar: true, emMinutos: 120, janela24h: true, maxTentativas: 2 });
+      expect(ultimo).toMatchObject({ agendar: false, acaoFinal: 'encerrar_trilha_janela_24h' });
+    } finally {
+      regras.CANAIS_COM_ROBO.pop();
+      regras.CANAIS_COM_BOT_DA_EQUIPE.push(...botDaEquipe);
+    }
+  });
+
+  it('fora da Meta (Telegram) a cadencia longa continua: +2 h, +24 h, +3 dias, +7 dias', () => {
+    const { robo } = avaliar({ canal: 'telegram', texto: 'Quanto custa o Summer Camp?' });
+    expect(robo.followUp).toMatchObject({ agendar: true, emMinutos: 120, janela24h: false, maxTentativas: 4 });
+  });
+
+  it('pedido de humano ganha a tag da equipe "Quer atendimento"', () => {
+    expect(regras.KOMMO_MAPA.tagsPorMotivo.PEDIDO_HUMANO).toEqual(['Quer atendimento']);
   });
 });

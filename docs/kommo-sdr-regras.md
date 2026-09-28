@@ -1,7 +1,8 @@
 # SDR Agent U-RACE — Regras Operacionais (Kommo + Robô Chat)
 
-Este documento define **como o Kommo separa o que é lead do que não é** (dois
-funis: Entrada e Comercial), **quando um card desce para o Comercial** e **como
+Este documento define **como o Kommo separa o que é lead do que não é** (duas
+páginas: Urace, a Entrada, que recebe tudo, e Comercial, só lead), **quando um
+card desce para o Comercial** e **como
 o robô chat atua como SDR**: a quem responde, como responde e quando aciona um
 humano.
 
@@ -26,74 +27,75 @@ As regras estão implementadas em `lib/sdr/` e expostas pelo backend em
 
 ---
 
-## Parte 0 — Os dois funis
+## Parte 0 — As duas páginas: Urace → Comercial
 
 Com uma pessoa só no atendimento, o que funcionava "na mão" com o time todo
-mexendo no Kommo não escala. A regra passa a ser: **o comercial só abre o funil
-Comercial**, e ele só tem lead.
+mexendo no Kommo não escala. A regra passa a ser: **o comercial só abre a
+página 2**, e ela só tem lead.
+
+O desenho é o do time de vendas (relatório *URACE — Meta e Kommo*, sessão de
+25/09/2026), montado sobre os funis que já existiam. O SDR **não cria funil nem
+etapa**: o mapa (`KOMMO_MAPA` em `lib/sdr/regras.js`) só aponta para etapas da
+equipe.
 
 ```
- Todos os canais ──► Funil ENTRADA (recebe tudo)
-                      ├─ Triagem (novo contato)
-                      ├─ Aguardando contexto (robô perguntou)   ◄─ "oi", áudio solto
-                      ├─ Conversa sem sinal comercial          ◄─ "obrigado", "onde fica"
-                      ├─ Automáticos (e-mails, códigos, notificações)
-                      ├─ Ruído (spam, fornecedor, interno)
-                      └─ Não contatar (opt-out)
+ Todos os canais ──► PÁGINA 1 = funil Urace (recebe tudo)
+                      First Contact  ◄─ todo card novo
+                        REGRA 1 (equipe): sem Meta_Ads/Website/Ads Forms/nao_e_lead, +5 min → tag DM
+                        REGRA 2 (equipe): com DM/Meta_Ads/Ads Forms/Website, +10 min → Comercial › ENTRADA
+                        SDR: lixo ganha nao_e_lead antes dos 5 min e fica parado aqui
+                      Cold Leads / Follow Up 1  ◄─ conversa antiga enterrada
+                        SDR: voltou com sinal comercial → sobe para Comercial › ENTRADA
                              │
-                             │  regra de entrada cumprida (seção 1.2)
                              ▼
-                     Funil COMERCIAL (só lead)
-                      Novo lead → Em qualificação (bot) → Qualificado - humano
-                      → Reserva Etapa 1 → Briefing Etapa 2 → Confirmada | Perdido
+                     PÁGINA 2 = funil Comercial (só lead)
+                      ENTRADA → QUALIFICADO → ATENDIMENTO → STAND BY → PROPOSTA → FECHAMENTO
+                      PERDIDO / NÃO QUALIFICADO
 ```
 
-**Regras de movimentação:**
+**Quem move o quê:**
 
-1. Contato novo sem sinal comercial fica na Entrada, na etapa que o motor indica
-   em `kommo.destino.etapa`.
-2. Quando o mesmo contato manda uma mensagem com sinal comercial, o card da
-   Entrada **desce** para o Comercial (`promover_card`). Não nasce outro card.
-3. Evento do site (Pit ID, Driver Briefing, formulário) e chamada perdida descem
-   direto, na etapa certa do funil de reserva.
-4. Lead que já está no Comercial **nunca volta** para a Entrada. Opt-out dentro
-   do Comercial fecha o card como **Perdido**.
-5. E-mail de sistema, código de verificação, newsletter e notificação de
-   plataforma vão para **Automáticos** e o robô não responde. Remetente
-   `no-reply`/`notifications`/`mailer-daemon` conta como automático mesmo com
-   texto que pareça comercial. "Unsubscribe" no rodapé de newsletter não é
-   opt-out.
-6. O Salesbot precisa enviar `card.pipeline` (`Entrada` ou `Comercial`). Sem
-   isso, o motor trata o card como Comercial (lado seguro: não duplica).
+| Onde está o card | O que o SDR faz | O que o SDR não faz |
+|---|---|---|
+| Urace › First Contact | Tag `nao_e_lead` no lixo (e-mail de sistema, código, notificação, spam) antes da REGRA 1; `opt_out` fecha como perdido; handoff urgente vira tarefa | Não sobe o card: quem sobe é a REGRA 2 (subir antes pularia a tag DM da REGRA 1) |
+| Urace › Cold Leads, Follow Up 1 | Mensagem nova com sinal comercial sobe para Comercial › ENTRADA, com a tag DM se o card não tiver tag de origem | Sem sinal comercial, não mexe |
+| Urace › demais etapas (Hot Leads, Closing the sale…) | Nada | A equipe está trabalhando o card |
+| Urace fechado (ganho/perdido) | Com sinal comercial, sobe para Comercial › ENTRADA | Sem sinal, não mexe |
+| Comercial | Handoff (tarefa + nota), opt-out → PERDIDO / NÃO QUALIFICADO, reabre perdido recente em ENTRADA | **Nunca** devolve o card para etapa anterior: depois de ENTRADA quem move é o vendedor |
+| Outro funil (Contact list, Pós Venda…) | Contato antigo que volta com sinal comercial: **tarefa + nota** para o responsável, uma vez por dia | Não move o card |
+| *Incoming leads* | Nada | O Kommo não deixa mover por PATCH |
 
-**No Kommo da U-RACE, tudo roda num funil próprio: "Novo funil".** O setup
-(seção 3.6) cria esse funil; os funis da equipe (Urace, Comercial, Contact list,
-Emails, Pós Venda, Operacional Vendas, Chase) **não são tocados**. Dentro do
-Novo funil, as etapas de triagem fazem o papel da Entrada e as de venda, do
-Comercial ("descer para o Comercial" = passar para a etapa de venda).
-Mapa em `KOMMO_MAPA` (`lib/sdr/regras.js`).
+**Mapa lógico → Kommo:**
 
-| Ordem | Etapa no Novo funil | Zona | O que cai |
-|---|---|---|---|
-| 1 | Triagem | Entrada | conversa nova (primeira etapa, sem *Incoming leads*) |
-| 2 | Aguardando contexto | Entrada | "oi", áudio/foto sem texto |
-| 3 | Lead novo | Comercial | formulário do site, chamada perdida |
-| 4 | Em qualificação (robô) | Comercial | preço, agenda, contratação, score ≥ 40 |
-| 5 | Atendimento humano | Comercial | handoff: pediu pessoa, conversão, corporativo, sensível |
-| 6 | Reserva Etapa 1 (Pit ID) | Comercial | reserva iniciada no site |
-| 7 | Briefing Etapa 2 | Comercial | (etapa para a equipe acompanhar o briefing) |
-| 8 | Sem sinal comercial | Entrada | "obrigado", pergunta operacional solta |
-| 9 | Automáticos (e-mails e códigos) | Entrada | e-mail de sistema, código de login + tag `nao_e_lead` |
-| 10 | Ruído (spam e fornecedores) | Entrada | spam, fornecedor, currículo + tag `nao_e_lead` |
-| — | Ganho (142) | Comercial | Driver Briefing concluído (reserva confirmada) |
-| — | Perdido (143) | ambas | perdido ou opt-out (+ tag `opt_out`) |
+| Destino lógico do motor | Etapa no Kommo |
+|---|---|
+| Entrada: Triagem, Aguardando contexto, Sem sinal, Automáticos, Ruído | Urace › First Contact (o que separa lixo de lead é a tag `nao_e_lead`, não a etapa) |
+| Entrada: Não contatar (opt-out) | perdido (143) + tag `opt_out` |
+| Comercial: Novo lead, Em qualificação | Comercial › ENTRADA |
+| Comercial: Qualificado - humano | Comercial › ATENDIMENTO |
+| Comercial: Reserva Etapa 1, Briefing Etapa 2 | Comercial › QUALIFICADO |
+| Comercial: Reserva confirmada | ganho (142) |
+| Comercial: Perdido | Comercial › PERDIDO / NÃO QUALIFICADO |
 
-**O que o executor não toca:** qualquer card fora do Novo funil, cards em
-*Incoming leads* e etapas que alguém crie à mão dentro do Novo funil.
+**Tags da equipe que o SDR respeita e usa:** `DM`, `Meta_Ads`, `Website`,
+`Ads Forms` (origem), `nao_e_lead`, `opt_out`, `Quer atendimento` (pedido de
+humano). As tags `sdr:*` são só do SDR e não entram em nenhuma condição das
+regras da equipe.
 
-**Para os leads chegarem ao Novo funil** é preciso, no Kommo, apontar as fontes
-(WhatsApp, Instagram, Messenger, Telegram, chat do site, e-mail) para ele. Até
-isso ser feito, o executor não mexe em nada: todo lead continua nos funis atuais.
+**Lead criado (webhook `add_lead`):** o Inbox de e-mail criava card de venda
+para código de login, alerta de segurança, notificação de plataforma e mensagem
+de marketplace (37 em 60 dias, nenhum lead). Quando um lead nasce em First
+Contact com um nome desses, o SDR põe `nao_e_lead` na hora, antes dos 5 min da
+REGRA 1. Lead novo com nome de gente é da equipe: o SDR não escreve nada.
+
+**Bots que já respondem:** o chatbot *URACE - Atendimento inicial DM* responde
+no Instagram e no Messenger; WhatsApp e chat do site têm bot próprio. Nesses
+canais o robô do SDR **não responde** (`BOT_DA_EQUIPE_NO_CANAL`); ele só
+organiza o card e, quando o assunto não pode esperar o menu do bot (pediu
+pessoa fora do menu, tema sensível, irritação, sinal de fechamento, piloto que
+compete, desconto, corporativo), cria a tarefa para o responsável, sem mandar
+mensagem. Lista em `CANAIS_COM_BOT_DA_EQUIPE`; tirar um canal dela é decisão do
+dono, junto com desligar o bot da equipe naquele canal.
 
 ---
 
@@ -214,7 +216,9 @@ O motor devolve esses campos preenchidos em `kommo.campos`.
 
 ### 2.1 Quando o robô **responde**
 
-- Canal com robô: WhatsApp, Instagram, Messenger, Telegram, chat do site.
+- Canal com robô e **sem bot da equipe**: hoje só Telegram
+  (`CANAIS_COM_ROBO`). Instagram, Messenger, WhatsApp e chat do site já têm bot
+  da equipe (Parte 0).
 - Conversa individual (nunca grupo/transmissão).
 - Card **sem responsável humano** e com bot não silenciado.
 - Assunto comercial: serviços, disponibilidade, como funciona, faixa de valores,
@@ -230,6 +234,7 @@ O motor devolve esses campos preenchidos em `kommo.campos`.
 | Contato interno / teste | `CONTATO_INTERNO` | Silêncio |
 | Spam / fornecedor / currículo | `SPAM_OU_OFERTA` | Silêncio |
 | Agradecimento ou encerramento | `AGRADECIMENTO_OU_ENCERRAMENTO` | Silêncio |
+| Canal com bot da equipe (Instagram, Messenger, WhatsApp, chat do site) | `BOT_DA_EQUIPE_NO_CANAL` | Silêncio; tarefa humana só para pedido de pessoa, tema sensível, irritação, fechamento, piloto que compete, desconto e corporativo |
 | Canal sem robô (telefone, e-mail) | `CANAL_SEM_ROBO` | Silêncio + tarefa humana |
 | Etapa 2 concluída (e-mail automático já sai) | `FLUXO_AUTOMATICO` | Silêncio |
 | Opt-out | `OPT_OUT` | Uma confirmação e silêncio definitivo |
@@ -284,6 +289,12 @@ depois fecha como `Perdido` por falta de resposta. Quando o que foi enviado é u
 link de programa/calendário, a trilha é +10 min → +24 h → +3 dias → +7 dias.
 Nunca duas trilhas no mesmo lead: resposta do lead ou escalonamento mata a trilha
 na hora.
+
+**Janela de 24 h da Meta:** no Instagram, no Messenger e no WhatsApp não existe
+mensagem livre 24 h depois da última mensagem do lead. Nesses canais a trilha é
++2 h → +20 h (22 h no total) e para ali (`encerrar_trilha_janela_24h`): retomar
+depois disso é com uma pessoa ou com modelo aprovado, nunca com o robô
+(`FOLLOW_UP_MINUTOS_JANELA_24H`).
 
 **Horário:** o robô responde 24/7. Fora da janela de atendimento humano, avisa que
 uma pessoa responde no próximo horário útil e a tarefa do humano já nasce com
@@ -472,7 +483,9 @@ Proteção opcional: defina `SDR_WEBHOOK_TOKEN` no ambiente e envie
 | Textos do robô | `lib/sdr/regras.js` | `MENSAGENS` |
 | Perguntas de qualificação | `lib/sdr/regras.js` | `CAMPOS_QUALIFICACAO` |
 | Horário comercial e SLAs | `lib/sdr/regras.js` | `HORARIO_COMERCIAL`, `SLA` |
-| Cadência de follow-up | `lib/sdr/regras.js` | `FOLLOW_UP_MINUTOS`, `FOLLOW_UP_POS_LINK_MINUTOS` |
+| Cadência de follow-up | `lib/sdr/regras.js` | `FOLLOW_UP_MINUTOS`, `FOLLOW_UP_POS_LINK_MINUTOS`, `FOLLOW_UP_MINUTOS_JANELA_24H` |
+| Canais onde o bot da equipe responde | `lib/sdr/regras.js` | `CANAIS_COM_BOT_DA_EQUIPE` |
+| Funis, etapas e tags do Kommo | `lib/sdr/regras.js` | `KOMMO_MAPA` |
 | Frases proibidas | `lib/sdr/regras.js` | `NUNCA_DIZER` |
 | Classificação A/B/C/D | `lib/sdr/regras.js` | `CLASSIFICACAO_EXPERIENCIA` |
 | Teto de re-alertas | `lib/sdr/regras.js` | `MAX_REALERTAS` |
@@ -506,19 +519,21 @@ que modo. O Salesbot fica só com as **respostas** ao lead
 
 | Rota | Faz |
 |---|---|
-| `POST /api/kommo/estrutura` | Confere o `KOMMO_MAPA` contra a conta; com `aplicar`, cria o Novo funil se ele não existir; opcionalmente registra o webhook. Exige `Authorization: Bearer <SDR_WEBHOOK_TOKEN>`. |
-| `POST /api/kommo/webhook?token=<KOMMO_WEBHOOK_TOKEN>` | Recebe "mensagem recebida" do Kommo, avalia e aplica: move a etapa (desce da Entrada para o Comercial), tags, nota e, no handoff, tarefa para o responsável. Responde na hora e processa em segundo plano. |
+| `POST /api/kommo/estrutura` | Confere o `KOMMO_MAPA` contra a conta (funis Urace e Comercial, etapas usadas) e **nunca cria nada**; com `aplicar` e `webhookUrl`, registra ou completa o webhook. Exige `Authorization: Bearer <SDR_WEBHOOK_TOKEN>`. |
+| `POST /api/kommo/webhook?token=<KOMMO_WEBHOOK_TOKEN>` | Recebe "mensagem recebida" (`add_message`) e "lead criado" (`add_lead`) do Kommo, avalia e aplica as regras da Parte 0. Responde na hora e processa em segundo plano. |
 
-Por mensagem do lead, o executor lê o card, avalia com as mesmas regras e:
+Por evento, o executor lê o card, avalia com as mesmas regras e:
 
-- move para `kommo.destino`, traduzido pelo `KOMMO_MAPA` para a etapa real
-  (Parte 0);
+- aplica a tabela *Quem move o quê* da Parte 0 (First Contact só ganha tags; a
+  REGRA 2 da equipe sobe o card);
 - adiciona tags sem apagar as existentes (`tags_to_add`);
-- escreve nota **só** quando o card entra no Comercial ou vai para humano;
-- no handoff cria tarefa com o prazo do SLA para `KOMMO_RESPONSAVEL_ID` e aplica
-  `sdr:bot-silenciado` (o robô para de responder naquele card);
-- ignora mensagem enviada pela equipe, mensagem repetida e lead de funil que não
-  seja Entrada/Comercial (funis antigos ficam intactos).
+- escreve nota **só** quando o card entra no Comercial, vai para humano ou é
+  contato antigo de outro funil;
+- no handoff cria tarefa com o prazo do SLA para `KOMMO_RESPONSAVEL_ID`; o
+  `sdr:bot-silenciado` só entra quando quem estava respondendo era o robô do SDR;
+- nunca devolve card para etapa anterior no mesmo funil;
+- ignora mensagem enviada pela equipe, mensagem repetida, *Incoming leads* e as
+  etapas da Urace que a equipe está trabalhando.
 
 **Modo observação (padrão):** sem `KOMMO_MODO=aplicar`, o executor recebe as
 mensagens, decide e **só registra no log** o que faria (`Kommo SDR: {"modo":"observar",...}`),
@@ -539,30 +554,35 @@ decisões e só então mudar para `aplicar`.
 3. Fazer o merge deste PR, copiar o repositório para o servidor e subir
    `node sdr-server.js` como serviço (systemd, pm2 ou o supervisor que o
    servidor já usa), com o HTTPS público apontando para ele.
-4. Conferir o plano, sem alterar nada (na conta atual deve vir só
-   `pipelinesFaltando: [Novo funil]` com as 10 etapas):
+4. Conferir o mapa, sem alterar nada (na conta atual deve vir `plano.ok: true`,
+   com Urace e Comercial encontrados). Se alguém renomear uma etapa usada
+   (First Contact, Cold Leads, Follow Up 1, ENTRADA, QUALIFICADO, ATENDIMENTO,
+   PERDIDO / NÃO QUALIFICADO), ela aparece em `etapasFaltando`: corrigir o nome
+   ou o `KOMMO_MAPA`.
    ```bash
    curl -X POST https://<servidor-sdr>/api/kommo/estrutura \
      -H "Authorization: Bearer $SDR_WEBHOOK_TOKEN" -H "Content-Type: application/json" -d '{}'
    ```
-5. Criar o **Novo funil** e registrar o webhook (funil só é criado se não
-   existir; etapa nunca é acrescentada em funil existente; rodar de novo não
-   duplica):
+5. Registrar o webhook (mensagem recebida + lead criado; rodar de novo não
+   duplica e completa assinatura antiga que só tinha mensagem):
    ```bash
    curl -X POST https://<servidor-sdr>/api/kommo/estrutura \
      -H "Authorization: Bearer $SDR_WEBHOOK_TOKEN" -H "Content-Type: application/json" \
      -d '{"aplicar": true, "webhookUrl": "https://<servidor-sdr>/api/kommo/webhook?token=<KOMMO_WEBHOOK_TOKEN>"}'
    ```
    Alternativa local: `KOMMO_SUBDOMINIO=... KOMMO_TOKEN=... node scripts/kommo-setup.js --aplicar --webhook "<url>"`.
-6. No Kommo, apontar **cada canal** (WhatsApp, Instagram, Messenger, Telegram,
-   chat do site, e-mail) para o **Novo funil**. Dá para começar por um canal só
-   e ir migrando. Em *Integrações → Web hooks*,
-   conferir que o webhook aparece com o evento de **mensagem recebida**; se o
-   registro pela API não tiver pegado, cadastrar manualmente a mesma URL.
-7. Teste de fumaça: de um número de teste, mandar "oi" (Novo funil ·
-   Aguardando contexto) e depois "quanto custa?" (Novo funil · Em qualificação
-   (robô), com nota `promover_card`). Em modo observação, conferir no log do
-   serviço: uma linha `Kommo SDR:` por mensagem.
+6. Nada muda nos canais: eles continuam entrando em Urace › First Contact, onde
+   as REGRAS 1 e 2 da equipe já estão no ar. Em *Integrações → Web hooks*,
+   conferir que o webhook aparece com **mensagem recebida** e **lead criado**;
+   se o registro pela API não tiver pegado, cadastrar manualmente a mesma URL.
+7. Teste de fumaça em modo observação (uma linha `Kommo SDR:` por evento no
+   log):
+   - card `[TESTE]` em First Contact com o nome "Seu código para fazer login é
+     123456" → `marcar_nao_e_lead`;
+   - "how much is a single day?" num card `[TESTE]` em First Contact →
+     `segurado: REGRA_2_DA_EQUIPE` (quem sobe é a regra da equipe);
+   - a mesma pergunta num card `[TESTE]` em Cold Leads → `promover_card` para
+     Comercial › ENTRADA com a tag DM.
 
 ---
 
@@ -592,8 +612,9 @@ como parâmetro, marcados, e não como verdade:
 
 | Ponto | Valor provisório | Pendência |
 |---|---|---|
-| Horário de atendimento humano | quarta a domingo, 9h–18h (Orlando) | confirmar dias e faixa |
+| Horário de atendimento humano | quarta a domingo, 9h–18h (Orlando) | confirmar dias e faixa; o relatório de 25/09 aponta três arquivos com QUI–DOM 8h–15h e uma mensagem enviada a cliente dizendo 5pm |
 | Horário de operação da pista | quarta a domingo, 8h–13h | confirmado por Italo em atendimento real, mas conflita com a janela acima |
+| Responsável único (`KOMMO_RESPONSAVEL_ID`) | não definido | o bot da equipe apresenta o Lucas ("Lucas will come in right here", "15 minutes with Lucas"); confirmar e pegar o id de usuário dele no Kommo |
 | Portfólio de serviços | Professional Coaching, Summer Camp, Trackside Support (do sistema de reservas) | o portfólio comercial do Chase era 1-Day Arrive and Drive, Training Camp, Academy e Racing Team; decidir qual vale no funil |
 | Idade mínima | não implementado | o Chase recusava por código abaixo de 4 anos (Baby Kart 4–7, demais 7+) |
 | Taxas da pista e depósito | não implementado | driver pass e pit pass são pagos direto à pista e nunca entram no valor |
@@ -611,7 +632,7 @@ Não é o funil final; é o mínimo que para de jogar lead cru no pipeline.
 
 | Dia | Entrega | Quem | Pronto quando |
 |---|---|---|---|
-| 1 | Criar o **Novo funil** (seção 3.6) e apontar os canais para ele | Nós + empresa | mensagem de teste de cada canal cai em Triagem |
+| 1 | Conferir o mapa Urace → Comercial contra a conta (seção 3.6, passo 4) | Nós | `plano.ok: true` |
 | 1 | Validar este documento: horário de atendimento, portfólio do funil (Parte 4) | Nós | pendências da Parte 4 respondidas |
 | 2 | Subir `sdr-server.js` no servidor do Command Center em **modo observação** (seção 3.6): token, variáveis, HTTPS, webhook | Nós | log mostra a decisão de cada mensagem real |
 | 2 | Salesbot com passo `Webhook` → `/api/sdr/avaliar` só para as respostas do robô | Empresa + nós | robô responde "oi" com a pergunta de classificação |
@@ -619,8 +640,8 @@ Não é o funil final; é o mínimo que para de jogar lead cru no pipeline.
 | 3 | Handoff: tarefa + nota de resumo + notificação para o responsável único | Empresa | teste "quero falar com alguém" gera tarefa em ≤ 5 min |
 | 4 | Site → Kommo: eventos `reserva_etapa1` / `reserva_etapa2` com Pit ID | Nós | reserva de teste aparece na etapa certa |
 | 4 | Revisar 2 dias de log do modo observação e virar para `KOMMO_MODO=aplicar` | Nós | decisões conferidas; card de teste desce sozinho |
-| 5 | Follow-up (2 h, 1 dia, 3 dias, 7 dias) e fechamento como Perdido sem resposta | Empresa | lead de teste sem resposta recebe o 1º follow-up |
-| 6–7 | Rodar com leads reais; revisar a Entrada uma vez por dia procurando lead que ficou para trás e ajustar palavras-chave | Nós | nenhum lead real parado na Entrada |
+| 5 | Follow-up dentro da janela de 24 h da Meta (+2 h, +20 h) nos canais da Meta; trilha longa só fora deles | Empresa | lead de teste sem resposta recebe o 1º follow-up |
+| 6–7 | Rodar com leads reais; revisar First Contact e Cold Leads uma vez por dia procurando lead que ficou para trás e ajustar palavras-chave | Nós | nenhum lead real parado na página 1 |
 
 **Divisão com a empresa que configura o Kommo:** a empresa monta funis,
 Salesbot, tarefas e notificações; a **lógica** (o que desce, o que o robô
@@ -631,3 +652,34 @@ revisável, não um clique perdido no Kommo.
 **Métrica da semana:** quantos cards chegaram ao Comercial, quantos eram lead de
 verdade, quantos leads ficaram presos na Entrada e tempo até a primeira resposta
 humana nos handoffs de prioridade alta.
+
+---
+
+## Parte 6 — Relatório Meta e Kommo de 25/09/2026 (time de vendas)
+
+O relatório do time de vendas mudou o desenho deste SDR. O que foi
+incorporado:
+
+| Ponto do relatório | Como ficou aqui |
+|---|---|
+| Página 1 = Urace, página 2 = Comercial, com REGRAS 1 e 2 no ar | É o mapa do SDR (Parte 0). O "Novo funil" foi abandonado; nada é criado no Kommo |
+| 37 cards de e-mail em 60 dias, nenhum lead (código de login, alerta de segurança, token do GitHub, banco, notificações, Alibaba) | Webhook `add_lead` + palavras-chave: `nao_e_lead` antes dos 5 min da REGRA 1 |
+| Contato antigo não cria card novo (ex.: lead parado em Contact list › Interactions recebeu DM e nada disparou) | Cold Leads / Follow Up 1 sobem para Comercial; outros funis geram tarefa + nota |
+| 107 DMs enterradas em Cold Leads | Resgate de Cold Leads com sinal comercial |
+| Chatbot da equipe no Instagram/Messenger; WhatsApp e site com bot próprio | O robô do SDR não responde nesses canais; só organiza e chama gente quando não dá para esperar |
+| "Outra resposta" e "Sem resposta" vazios no bot da equipe | Pedido de pessoa, tema sensível e sinais de fechamento escritos fora do menu viram tarefa |
+| Janela de 24 h da Meta | Follow-up dos canais da Meta cabe em 22 h e para |
+| Tabela de preços válida ($719, $819, $899, $500, $2.756/mês, extra $689, Lead & Follow $769; track fee nunca incluída) | O robô continua sem citar valor fechado (Parte 2); a tabela é a mesma do Rate Card do Chase |
+
+Continua com o dono (o relatório também lista):
+
+- se o agente de IA do Kommo revela que é IA, e se liga o agente (15 créditos
+  por mensagem);
+- o que `NAO_TOCAR` significa na prática;
+- o horário (QUI–DOM 8h–15h nos arquivos × 5pm numa mensagem);
+- seis bots dividindo o gatilho de conversa (inclusive o *Mensagem Pusher* com
+  2.942 lançamentos): qual deve ficar;
+- gatilhos do agente de IA apontando para "Integração deletada";
+- formulário de anúncio chegando sem e-mail e sem telefone (7 de 10);
+- 33 conversas não respondidas, uma há 14 dias (fila humana).
+

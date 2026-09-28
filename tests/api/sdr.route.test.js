@@ -32,13 +32,15 @@ describe('Endpoints do SDR', () => {
     expect(resposta.status).toBe(200);
     expect(resposta.body.ok).toBe(true);
     expect(resposta.body.regras.entrada.limiarScore).toBe(40);
-    expect(resposta.body.regras.canais.comRobo).toContain('whatsapp');
+    expect(resposta.body.regras.canais.comRobo).toEqual(['telegram']);
+    expect(resposta.body.regras.canais.comBotDaEquipe).toEqual(['instagram', 'messenger', 'whatsapp', 'site']);
+    expect(resposta.body.regras.pipelines.noKommo).toEqual({ Entrada: 'Urace', Comercial: 'Comercial' });
   });
 
   it('POST /api/sdr/avaliar decide criar card para intencao comercial', async () => {
     const resposta = await request(server)
       .post('/api/sdr/avaliar')
-      .send({ canal: 'whatsapp', tipo: 'mensagem', texto: 'Quanto custa o Professional Coaching?' });
+      .send({ canal: 'telegram', tipo: 'mensagem', texto: 'Quanto custa o Professional Coaching?' });
 
     expect(resposta.status).toBe(200);
     expect(resposta.body.ok).toBe(true);
