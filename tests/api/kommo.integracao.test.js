@@ -265,7 +265,56 @@ describe('Kommo — pagina 1 (Urace): o SDR complementa as REGRAS 1 e 2', () => 
     expect(falso.estado.notas).toHaveLength(0);
   });
 
-  it('codigo de login por mensagem em First Contact ganha nao_e_lead e fica', async () => {
+  // Teste ponta a ponta de 28/09: card antigo movido para First Contact
+  // ficou 32 min parado; a REGRA 2 so roda para card que nasce ali.
+  it('card antigo em First Contact com sinal comercial sobe para ENTRADA com DM', async () => {
+    const falso = criarKommoFalso();
+    const agora = new Date('2026-09-28T18:36:00Z');
+    falso.criarLead(40, URACE, FIRST_CONTACT, {
+      created_at: Math.floor(new Date('2026-05-18T19:25:57Z').getTime() / 1000),
+      _embedded: { tags: [{ name: 'custom-kart-inquiry' }] }
+    });
+
+    const resultado = await integracaoPara(falso).processarMensagem(
+      kommo.extrairMensagensRecebidas(mensagem(40, 'how much is a single day on track?', { origin: 'instagram' }))[0],
+      agora
+    );
+
+    expect(resultado.segurado).toBeUndefined();
+    expect(resultado.semRegra2).toBe('CARD_ANTIGO_EM_FIRST_CONTACT');
+    expect(falso.estado.leads[40].pipeline_id).toBe(COMERCIAL);
+    expect(falso.estado.leads[40].status_id).toBe(ENTRADA);
+    expect(tags(falso.estado.leads[40])).toEqual(expect.arrayContaining(['DM', 'custom-kart-inquiry']));
+    expect(falso.estado.notas).toHaveLength(1);
+  });
+
+  it('card criado ha 2 min em First Contact continua segurado para a REGRA 2', async () => {
+    const falso = criarKommoFalso();
+    const agora = new Date('2026-09-28T18:36:00Z');
+    falso.criarLead(41, URACE, FIRST_CONTACT, { created_at: Math.floor(agora.getTime() / 1000) - 120 });
+
+    const resultado = await integracaoPara(falso).processarMensagem(
+      kommo.extrairMensagensRecebidas(mensagem(41, 'how much is a single day on track?', { origin: 'instagram' }))[0],
+      agora
+    );
+
+    expect(resultado.segurado).toBe('REGRA_2_DA_EQUIPE');
+    expect(falso.estado.leads[41].status_id).toBe(FIRST_CONTACT);
+  });
+
+  it('codigo de login numa DM do Instagram nao poe nao_e_lead (conversa de chat)', async () => {
+    const falso = criarKommoFalso();
+    falso.criarLead(42, URACE, FIRST_CONTACT);
+
+    const [resultado] = await integracaoPara(falso).receberWebhook(mensagem(42, '713157 is your code to log in to Kommo', { origin: 'instagram' }));
+
+    expect(resultado.naoMarcou).toBe('nao_e_lead');
+    expect(falso.estado.leads[42].status_id).toBe(FIRST_CONTACT);
+    expect(tags(falso.estado.leads[42])).toContain('sdr:automatico');
+    expect(tags(falso.estado.leads[42])).not.toContain('nao_e_lead');
+  });
+
+  it('codigo de login por e-mail em First Contact ganha nao_e_lead e fica', async () => {
     const falso = criarKommoFalso();
     falso.criarLead(5, URACE, FIRST_CONTACT);
 

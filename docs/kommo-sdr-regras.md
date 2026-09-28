@@ -57,13 +57,28 @@ equipe.
 
 | Onde está o card | O que o SDR faz | O que o SDR não faz |
 |---|---|---|
-| Urace › First Contact | Tag `nao_e_lead` no lixo (e-mail de sistema, código, notificação, spam) antes da REGRA 1; `opt_out` fecha como perdido; handoff urgente vira tarefa | Não sobe o card: quem sobe é a REGRA 2 (subir antes pularia a tag DM da REGRA 1) |
+| Urace › First Contact, card criado há menos de 15 min | Tag `nao_e_lead` no lixo que chega por e-mail (sistema, código, notificação, spam) antes da REGRA 1; `opt_out` fecha como perdido; handoff urgente vira tarefa | Não sobe o card: quem sobe é a REGRA 2 (subir antes pularia a tag DM da REGRA 1) |
+| Urace › First Contact, card mais antigo (movido para lá, ou que já estava) | Com sinal comercial, sobe para Comercial › ENTRADA com a tag DM se o card não tiver tag de origem; o log marca `semRegra2` | Sem sinal comercial, não mexe |
 | Urace › Cold Leads, Follow Up 1 | Mensagem nova com sinal comercial sobe para Comercial › ENTRADA, com a tag DM se o card não tiver tag de origem | Sem sinal comercial, não mexe |
 | Urace › demais etapas (Hot Leads, Closing the sale…) | Nada | A equipe está trabalhando o card |
 | Urace fechado (ganho/perdido) | Com sinal comercial, sobe para Comercial › ENTRADA | Sem sinal, não mexe |
 | Comercial | Handoff (tarefa + nota), opt-out → PERDIDO / NÃO QUALIFICADO, reabre perdido recente em ENTRADA | **Nunca** devolve o card para etapa anterior: depois de ENTRADA quem move é o vendedor |
 | Outro funil (Contact list, Pós Venda…) | Contato antigo que volta com sinal comercial: **tarefa + nota** para o responsável, uma vez por dia | Não move o card |
 | *Incoming leads* | Nada | O Kommo não deixa mover por PATCH |
+
+**Por que a janela de 15 min.** As REGRAS 1 e 2 da equipe só rodam para o
+card que **nasce** em First Contact. No teste ponta a ponta de 28/09, um card
+antigo movido para First Contact ficou 32 minutos parado, sem tag DM e sem
+subir. Por isso o SDR só segura para a REGRA 2 o card criado há menos de
+`KOMMO_MAPA.janelaRegra2Minutos` (15; a REGRA 2 age em +10). Se a equipe
+também agir, dá no mesmo: mesma etapa, mesma tag.
+
+**`nao_e_lead` nunca vem de conversa de chat.** A tag tira o card da REGRA 1
+para sempre. O SDR só a põe pelo nome do lead criado (assunto de e-mail de
+sistema) ou por mensagem de e-mail (`KOMMO_MAPA.canaisQueMarcamNaoLead`). No
+mesmo teste, uma DM com cara de código de login teria marcado `nao_e_lead` num
+card que um minuto antes perguntou preço. Em Instagram, WhatsApp, Messenger e
+site o log registra `naoMarcou: nao_e_lead` e fica só `sdr:automatico`.
 
 **Mapa lógico → Kommo:**
 
@@ -524,8 +539,9 @@ que modo. O Salesbot fica só com as **respostas** ao lead
 
 Por evento, o executor lê o card, avalia com as mesmas regras e:
 
-- aplica a tabela *Quem move o quê* da Parte 0 (First Contact só ganha tags; a
-  REGRA 2 da equipe sobe o card);
+- aplica a tabela *Quem move o quê* da Parte 0 (card recém-criado em First
+  Contact só ganha tags e a REGRA 2 da equipe sobe; card antigo em First
+  Contact com sinal comercial o SDR sobe);
 - adiciona tags sem apagar as existentes (`tags_to_add`);
 - escreve nota **só** quando o card entra no Comercial, vai para humano ou é
   contato antigo de outro funil;
@@ -580,8 +596,10 @@ decisões e só então mudar para `aplicar`.
    log):
    - card `[TESTE]` em First Contact com o nome "Seu código para fazer login é
      123456" → `marcar_nao_e_lead`;
-   - "how much is a single day?" num card `[TESTE]` em First Contact →
-     `segurado: REGRA_2_DA_EQUIPE` (quem sobe é a regra da equipe);
+   - "how much is a single day?" num card `[TESTE]` criado agora em First
+     Contact → `segurado: REGRA_2_DA_EQUIPE` (quem sobe é a regra da equipe);
+     num card antigo em First Contact → `promover_card` com
+     `semRegra2: CARD_ANTIGO_EM_FIRST_CONTACT`;
    - a mesma pergunta num card `[TESTE]` em Cold Leads → `promover_card` para
      Comercial › ENTRADA com a tag DM.
 
