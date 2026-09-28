@@ -103,8 +103,9 @@ de marketplace (37 em 60 dias, nenhum lead). Quando um lead nasce em First
 Contact com um nome desses, o SDR põe `nao_e_lead` na hora, antes dos 5 min da
 REGRA 1. Lead novo com nome de gente é da equipe: o SDR não escreve nada.
 
-**Bots que já respondem:** o chatbot *URACE - Atendimento inicial DM* responde
-no Instagram e no Messenger; WhatsApp e chat do site têm bot próprio. Nesses
+**Quem já responde:** em Urace, o agente de IA do Kommo (*Agente qualificador
+de leads*), **sempre ligado** por decisão do dono em 28/09, ao lado dos bots da
+equipe (*URACE - Atendimento inicial DM*, *Website bot*). Nesses
 canais o robô do SDR **não responde** (`BOT_DA_EQUIPE_NO_CANAL`); ele só
 organiza o card e, quando o assunto não pode esperar o menu do bot (pediu
 pessoa fora do menu, tema sensível, irritação, sinal de fechamento, piloto que
@@ -692,8 +693,8 @@ incorporado:
 
 Continua com o dono (o relatório também lista):
 
-- se o agente de IA do Kommo revela que é IA, e se liga o agente (15 créditos
-  por mensagem);
+- se o agente de IA do Kommo revela que é IA (ligar ficou decidido em 28/09:
+  sempre ligado);
 - o que `NAO_TOCAR` significa na prática;
 - o horário (QUI–DOM 8h–15h nos arquivos × 5pm numa mensagem);
 - seis bots dividindo o gatilho de conversa (inclusive o *Mensagem Pusher* com
